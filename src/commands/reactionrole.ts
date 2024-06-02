@@ -1,4 +1,5 @@
 import {
+  PermissionFlagsBits,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
   type Message,
@@ -38,7 +39,9 @@ export const command: Chino.SlashCommand = {
               "Remove a reaction after adding a role or not (default: False)"
             )
         )
-    ),
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .setDMPermission(false),
   execute: async (interaction: ChatInputCommandInteraction) => {
     if (interaction.options.getSubcommand() === "add") {
       const messageId = interaction.options.getString("message_id", true);
