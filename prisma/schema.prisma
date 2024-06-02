@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model GiftCode {
+  id              Int             @id @default(autoincrement())
+  code            String
+  giftCodeChannel GiftCodeChannel @relation(fields: [channelId], references: [id])
+  channelId       String
+  createdAt       DateTime        @default(now()) @db.Timestamptz(6)
+}
+
+model GiftCodeChannel {
+  id       String     @id
+  name     String
+  baseUrl  String
+  GiftCode GiftCode[]
+}
+
+model XMessage {
+  id        Int      @id @default(autoincrement())
+  sourceId  String
+  targetId  String
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model ReactionRole {
+  roleId    String   @id
+  guildId   String
+  channelId String
+  messageId String
+  emoji     String
+  secret    Boolean
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+}
