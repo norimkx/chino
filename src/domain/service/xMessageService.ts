@@ -6,7 +6,7 @@ import { prisma } from "../prisma";
  *
  * @param message
  */
-export const replaceXUrl = async (message: Message): Promise<void> => {
+export const convertXMessage = async (message: Message): Promise<void> => {
   // 「twitter.com」「x.com」を「fxtwitter.com」に変換、ついでにクエリパラメータを削除
   const regexp = /(https:\/\/)(twitter|x)(.com\/[\w]+\/status\/\d+)(\?\S*)?/g;
   const matches = message.content.matchAll(regexp);
@@ -45,7 +45,7 @@ export const replaceXUrl = async (message: Message): Promise<void> => {
  *
  * @param message
  */
-export const deleteXUrl = async (message: Message): Promise<void> => {
+export const deleteXMessage = async (message: Message): Promise<void> => {
   try {
     const xMessages = await prisma.xMessage.findMany({
       where: { sourceId: message.id },
