@@ -8,11 +8,11 @@ datasource db {
 }
 
 model GiftCode {
-  id              Int             @id @default(autoincrement())
-  code            String
-  giftCodeChannel GiftCodeChannel @relation(fields: [channelId], references: [id])
-  channelId       String
-  createdAt       DateTime        @default(now()) @db.Timestamptz(6)
+  id        Int             @id @default(autoincrement())
+  code      String
+  channel   GiftCodeChannel @relation(fields: [channelId], references: [id])
+  channelId String
+  createdAt DateTime        @default(now()) @db.Timestamptz(6)
 }
 
 model GiftCodeChannel {
