@@ -33,11 +33,28 @@ export const command: Chino.SlashCommand = {
             )
         )
     )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName("remove")
+        .setDescription("Remove a reaction role")
+        .addRoleOption((option) =>
+          option.setName("role").setDescription("Role").setRequired(true)
+        )
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName("list")
+        .setDescription("Check the list of reaction roles")
+    )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .setDMPermission(false),
   execute: async (interaction: ChatInputCommandInteraction) => {
     if (interaction.options.getSubcommand() === "add") {
       await reactionRoleService.addReactionRole(interaction);
+    } else if (interaction.options.getSubcommand() === "remove") {
+      await reactionRoleService.removeReactionRole(interaction);
+    } else if (interaction.options.getSubcommand() === "list") {
+      await reactionRoleService.listReactionRole(interaction);
     }
   },
 };

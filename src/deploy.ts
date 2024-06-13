@@ -42,6 +42,7 @@ const main = async (global: boolean = false): Promise<void> => {
 
   // コマンドをデプロイ
   try {
+    console.log(`Deploy commands ${global ? "globally" : "to the guild"}.`);
     console.log(
       `Started refreshing ${commands.length} application (/) commands.`
     );
@@ -59,4 +60,7 @@ const main = async (global: boolean = false): Promise<void> => {
   }
 };
 
-void main();
+const argv = process.argv;
+const global = argv[2] === "global";
+
+void main(global);

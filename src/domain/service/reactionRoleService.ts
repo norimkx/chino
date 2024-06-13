@@ -1,5 +1,7 @@
 import { type ReactionRole } from "@prisma/client";
 import {
+  BaseGuildTextChannel,
+  EmbedBuilder,
   type ChatInputCommandInteraction,
   type Message,
   type MessageReaction,
@@ -119,11 +121,12 @@ export const addReactionRole = async (
   const role = interaction.options.getRole("role", true);
   const secret = interaction.options.getBoolean("secret") ?? false;
 
+  // リアクションロール設定を取得
+  const reactionRoles = await loadReactionRoles();
+
   // リアクションロールがすでに存在していないかチェック
-  try {
-    const reactionRole = await prisma.reactionRole.findUnique({
-      where: { roleId: role.id },
-    });
+  {
+    const reactionRole = reactionRoles.find((r) => r.roleId === role.id);
     if (reactionRole != null) {
       await interaction.reply({
         content: "The reaction role already exists.",
@@ -131,20 +134,28 @@ export const addReactionRole = async (
       });
       return;
     }
-  } catch (error) {
-    console.error(error);
-    await interaction.reply({
-      content: "An unexpected error occurred.",
-      ephemeral: true,
-    });
-    return;
+  }
+
+  // 同じメッセージに同じ絵文字で登録しようとしていないかチェック
+  {
+    const reactionRole = reactionRoles.find(
+      (r) => r.messageId === messageId && r.emoji === escapeEmoji(emoji)
+    );
+    if (reactionRole != null) {
+      await interaction.reply({
+        content: "Duplicate emoji in the message.",
+        ephemeral: true,
+      });
+      return;
+    }
   }
 
   // 絵文字チェック
-  const [custom, emojiId] = isCustomEmoji(emoji);
-  if (custom) {
+  if (isCustomEmoji(emoji)) {
     // カスタム絵文字が使用可能かチェック
-    const customEmoji = interaction.client.emojis.cache.get(emojiId);
+    const customEmoji = interaction.client.emojis.cache.find(
+      (e) => e.toString() === emoji
+    );
     if (customEmoji == null) {
       await interaction.reply({
         content: "This emoji is not available.",
@@ -161,27 +172,6 @@ export const addReactionRole = async (
       });
       return;
     }
-  }
-
-  // 同じメッセージに同じ絵文字で登録しようとした場合エラーにする
-  try {
-    const reactionRoles = await prisma.reactionRole.findMany({
-      where: { messageId, emoji: escapeEmoji(emoji) },
-    });
-    if (reactionRoles.length > 0) {
-      await interaction.reply({
-        content: "Duplicate emoji in the message.",
-        ephemeral: true,
-      });
-      return;
-    }
-  } catch (error) {
-    console.error(error);
-    await interaction.reply({
-      content: "An unexpected error occurred.",
-      ephemeral: true,
-    });
-    return;
   }
 
   // リアクション付与用にメッセージを取得
@@ -207,6 +197,9 @@ export const addReactionRole = async (
       throw new Error("interaction.guildId is null.");
     }
 
+    // リアクション付与
+    await message.react(emoji);
+
     // 永続化
     await prisma.reactionRole.create({
       data: {
@@ -219,16 +212,13 @@ export const addReactionRole = async (
       },
     });
 
-    // リアクションロールオブジェクトを更新
-    await fetchReactionRoles();
-
-    // リアクション付与
-    await message.react(emoji);
-
     await interaction.reply({
       content: "Added the reaction role.",
       ephemeral: true,
     });
+
+    // リアクションロールオブジェクトを更新
+    await fetchReactionRoles();
   } catch (error) {
     console.error(error);
     await interaction.reply({
@@ -236,6 +226,93 @@ export const addReactionRole = async (
       ephemeral: true,
     });
   }
+};
+
+/**
+ * リアクションロール設定を削除する。
+ *
+ * @param interaction
+ */
+export const removeReactionRole = async (
+  interaction: ChatInputCommandInteraction
+): Promise<void> => {
+  const role = interaction.options.getRole("role", true);
+
+  // リアクションロール設定を取得
+  const reactionRoles = await loadReactionRoles();
+  const reactionRole = reactionRoles.find((r) => r.roleId === role.id);
+
+  // 指定のリアクションロール設定が見つからなければ終了
+  if (reactionRole == null) {
+    await interaction.reply({
+      content: "The reaction role does not exist.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  try {
+    const channel = await interaction.client.channels.fetch(
+      reactionRole.channelId
+    );
+    if (channel instanceof BaseGuildTextChannel) {
+      try {
+        // リアクションロールが設定されているメッセージを取得
+        const message = await channel.messages.fetch(reactionRole.messageId);
+
+        // 該当メッセージから設定したリアクションを削除
+        const emoji = unescapeEmoji(reactionRole.emoji);
+        const reaction = message.reactions.cache.find(
+          (reaction) => reaction.emoji.toString() === emoji
+        );
+        await reaction?.remove();
+      } catch (error) {
+        console.error(
+          "Failed to fetch the message while removing the reaction role."
+        );
+      }
+    }
+
+    // リアクションロール設定を削除
+    await prisma.reactionRole.delete({
+      where: {
+        roleId: reactionRole.roleId,
+      },
+    });
+
+    await interaction.reply({
+      content: "Removed the reaction role.",
+      ephemeral: true,
+    });
+
+    // リアクションロールオブジェクトを更新
+    await fetchReactionRoles();
+  } catch (error) {
+    console.error(error);
+    await interaction.reply({
+      content: "An unexpected error occurred.",
+      ephemeral: true,
+    });
+  }
+};
+
+/**
+ * リアクションロール設定一覧を表示する。
+ *
+ * @param interaction
+ */
+export const listReactionRole = async (
+  interaction: ChatInputCommandInteraction
+): Promise<void> => {
+  const reactionRoles = await fetchReactionRoles();
+  const descriptions = reactionRoles.map(
+    (reactionRole) =>
+      `${unescapeEmoji(reactionRole.emoji)} - <@&${reactionRole.roleId}>`
+  );
+  const embed = new EmbedBuilder()
+    .setTitle("Reaction Roles")
+    .setDescription(descriptions.join("\n"));
+  await interaction.reply({ embeds: [embed], ephemeral: true });
 };
 
 const findReactionRole = async (
@@ -250,10 +327,9 @@ const findReactionRole = async (
   });
 };
 
-const isCustomEmoji = (emoji: string): [boolean, string] => {
-  const regex = /^<a?:\w+:(\d+)>$/;
-  const match = emoji.match(regex);
-  return [match != null, match?.[1] ?? ""];
+const isCustomEmoji = (emoji: string): boolean => {
+  const regex = /^<a?:\w+:\d+>$/;
+  return regex.test(emoji);
 };
 
 const emojiLength = (emoji: string): number => {
